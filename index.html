@@ -99,6 +99,7 @@
   .btn-save:active { background: #cc6200; }
   .btn-del  { background: #2a3b55; color: #e0e1dd; }
   .btn-del:active { background: #1b263b; }
+  .btn-show { background: #1b263b; color: #ff7b00; border: 1px solid #ff7b00; width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
   .status {
     padding: 12px; border-radius: 10px;
     text-align: center; font-size: 14px; margin-bottom: 14px;
@@ -166,7 +167,9 @@
 
       <div id="apiStatus" class="status no">❌ Anahtar yok — kural tabanlı mod</div>
 
-      <input id="apiKeyInput" class="api-input" type="password" placeholder="AIza... ile başlayan anahtar" autocomplete="off" />
+      <input id="apiKeyInput" class="api-input" type="password" placeholder="AIza... ile başlayan anahtar" autocomplete="off" spellcheck="false" />
+      <button type="button" class="btn-show" onclick="toggleKey()">👁️ Göster / Gizle</button>
+
       <div class="btn-row">
         <button class="btn-save" onclick="saveKey()">💾 Kaydet</button>
         <button class="btn-del"  onclick="deleteKey()">🗑️ Sil</button>
@@ -204,6 +207,11 @@ function updateApiStatus(){
     el.className = "status no";
     el.textContent = "❌ Anahtar yok — kural tabanlı mod";
   }
+}
+
+function toggleKey(){
+  const inp = document.getElementById("apiKeyInput");
+  inp.type = inp.type === "password" ? "text" : "password";
 }
 
 function saveKey(){
@@ -291,10 +299,8 @@ async function send(){
   addMsg(text, "user");
   input.value = "";
 
-  // Kural tabanlı önce
   const ruleReply = getRuleReply(text);
 
-  // Anahtar varsa Gemini'ye sor
   if(getKey()){
     const typing = addMsg("Avcı AI düşünüyor...", "bot", "typing");
     const reply = await getGeminiReply(text);
@@ -396,4 +402,4 @@ updateApiStatus();
 </script>
 
 </body>
- </html> 
+   </html>
