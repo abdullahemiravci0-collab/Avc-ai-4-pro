@@ -76,7 +76,6 @@
   .score { display: flex; justify-content: space-around; padding: 12px; background: #0d1b2a; border-radius: 12px; font-size: 14px; }
   .score div span { display: block; font-size: 22px; font-weight: bold; color: #ff7b00; margin-top: 4px; }
 
-  /* AYARLAR */
   .settings-box { padding: 8px; }
   .settings-box h3 { color: #ff7b00; margin: 4px 0 12px; font-size: 16px; }
   .settings-box p { font-size: 13px; color: #a0a0a0; line-height: 1.5; }
@@ -167,7 +166,8 @@
 
       <div id="apiStatus" class="status no">❌ Anahtar yok — kural tabanlı mod</div>
 
-      <input id="apiKeyInput" class="api-input" type="password" placeholder="AIza... ile başlayan anahtar" autocomplete="off" spellcheck="false" />
+      <!-- type="text" yapıldı, klavye şifre moduna girmez -->
+      <input id="apiKeyInput" class="api-input" type="text" placeholder="AIza... ile başlayan anahtar" autocomplete="off" spellcheck="false" />
       <button type="button" class="btn-show" onclick="toggleKey()">👁️ Göster / Gizle</button>
 
       <div class="btn-row">
@@ -175,7 +175,7 @@
         <button class="btn-del"  onclick="deleteKey()">🗑️ Sil</button>
       </div>
 
-      <p class="hint">⚠️ Anahtar olmadan da bot çalışır (kural tabanlı mod). Anahtar girersen Gemini'ye bağlanır.</p>
+      <p class="hint">⚠️ Anahtar olmadan da bot çalışır. Anahtar girersen Gemini'ye bağlanır.</p>
     </div>
   </section>
 
@@ -258,28 +258,40 @@ function getRuleReply(text){
   return null;
 }
 
+// 🔥 YEDEKLEMELİ (FALLBACK) GEMINI BAĞLANTISI
 async function getGeminiReply(text){
   const key = getKey();
   if(!key) return null;
-  try {
-    const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: text }] }]
-        })
+  
+  // Sırayla denenecek modeller
+  const models = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.6-flash"];
+  let lastError = "";
+
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] })
+        }
+      );
+      
+      if(res.ok) {
+        const data = await res.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if(reply) return reply; // Başarılıysa direkt dön
+      } else {
+        lastError = res.status;
       }
-    );
-    if(!res.ok){
-      return "⚠️ Gemini hatası (" + res.status + "). Anahtar geçersiz veya kota dolmuş olabilir.";
+    } catch(e) {
+      lastError = e.message;
     }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "🤔 Gemini boş cevap döndü.";
-  } catch(e){
-    return "⚠️ Bağlantı hatası: " + e.message;
   }
+
+  // Hepsi başarısız olursa
+  return "⚠️ Gemini hatası (" + lastError + "). Modeller denendi ama cevap alınamadı. Anahtar geçersiz veya kotanız dolmuş olabilir.";
 }
 
 function addMsg(text, who, extraClass){
@@ -402,4 +414,420 @@ updateApiStatus();
 </script>
 
 </body>
-   </html>
+ </html><!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Avcı AI 4 Pro</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: linear-gradient(180deg, #0d1b2a 0%, #1b263b 100%);
+    color: #e0e1dd;
+    margin: 0; padding: 0;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  header {
+    text-align: center;
+    padding: 14px 12px 8px;
+    background: #0d1b2a;
+    border-bottom: 2px solid #ff7b00;
+  }
+  header h1 { margin: 0; font-size: 19px; color: #ff7b00; letter-spacing: 1px; }
+  header p  { margin: 3px 0 0; font-size: 11px; color: #a0a0a0; }
+
+  nav { display: flex; background: #1b263b; border-bottom: 1px solid #2a3b55; }
+  nav button {
+    flex: 1; padding: 12px 4px;
+    background: transparent; border: none;
+    color: #a0a0a0; font-size: 12px; font-weight: 600;
+    cursor: pointer; border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  nav button.active { color: #ff7b00; border-bottom-color: #ff7b00; background: #0d1b2a; }
+
+  main { flex: 1; padding: 12px; max-width: 600px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; }
+  .tab { display: none; flex: 1; flex-direction: column; }
+  .tab.active { display: flex; }
+
+  #messages { flex: 1; overflow-y: auto; margin-bottom: 10px; padding: 4px; min-height: 200px; }
+  .msg { padding: 10px 14px; border-radius: 14px; margin: 6px 0; max-width: 80%; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
+  .user { background: #ff7b00; color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
+  .bot  { background: #2a3b55; color: #e0e1dd; border-bottom-left-radius: 4px; }
+  .bot.typing { color: #ff7b00; font-style: italic; }
+
+  .row { display: flex; gap: 8px; }
+  .row input {
+    flex: 1; padding: 12px;
+    border: 1px solid #2a3b55; border-radius: 12px;
+    font-size: 16px; background: #0d1b2a; color: #e0e1dd; outline: none;
+  }
+  .row input:focus { border-color: #ff7b00; }
+  .row button {
+    padding: 12px 18px; border: none;
+    background: #ff7b00; color: #fff;
+    border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer;
+  }
+  .row button:active { background: #cc6200; }
+
+  #suggestInput { width: 100%; padding: 14px; border: 1px solid #2a3b55; border-radius: 12px; font-size: 16px; background: #0d1b2a; color: #e0e1dd; outline: none; margin-bottom: 12px; }
+  #suggestInput:focus { border-color: #ff7b00; }
+  #suggestList { list-style: none; padding: 0; margin: 0; }
+  #suggestList li { padding: 12px 14px; background: #1b263b; border-left: 3px solid #ff7b00; border-radius: 8px; margin-bottom: 8px; font-size: 15px; }
+  #suggestList li strong { color: #ff7b00; }
+  .hint { font-size: 13px; color: #7a8a9a; text-align: center; padding: 8px; }
+
+  .game-box { text-align: center; }
+  .game-box h3 { color: #ff7b00; margin: 4px 0 12px; }
+  .choices { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
+  .choices button { flex: 1; padding: 20px 8px; font-size: 32px; background: #1b263b; border: 2px solid #2a3b55; border-radius: 14px; cursor: pointer; transition: all 0.15s; }
+  .choices button:active { transform: scale(0.95); border-color: #ff7b00; }
+  .result { padding: 14px; background: #1b263b; border-radius: 12px; margin-bottom: 12px; font-size: 16px; min-height: 50px; display: flex; align-items: center; justify-content: center; }
+  .result.win  { border: 2px solid #2ecc71; color: #2ecc71; }
+  .result.lose { border: 2px solid #e74c3c; color: #e74c3c; }
+  .result.draw { border: 2px solid #f1c40f; color: #f1c40f; }
+  .score { display: flex; justify-content: space-around; padding: 12px; background: #0d1b2a; border-radius: 12px; font-size: 14px; }
+  .score div span { display: block; font-size: 22px; font-weight: bold; color: #ff7b00; margin-top: 4px; }
+
+  .settings-box { padding: 8px; }
+  .settings-box h3 { color: #ff7b00; margin: 4px 0 12px; font-size: 16px; }
+  .settings-box p { font-size: 13px; color: #a0a0a0; line-height: 1.5; }
+  .settings-box a { color: #ff7b00; }
+  .api-input {
+    width: 100%; padding: 12px;
+    border: 1px solid #2a3b55; border-radius: 10px;
+    font-size: 14px; background: #0d1b2a; color: #e0e1dd;
+    outline: none; margin-bottom: 10px;
+    font-family: monospace;
+  }
+  .api-input:focus { border-color: #ff7b00; }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .btn-row button {
+    flex: 1; padding: 12px;
+    border: none; border-radius: 10px;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+  }
+  .btn-save { background: #ff7b00; color: #fff; }
+  .btn-save:active { background: #cc6200; }
+  .btn-del  { background: #2a3b55; color: #e0e1dd; }
+  .btn-del:active { background: #1b263b; }
+  .btn-show { background: #1b263b; color: #ff7b00; border: 1px solid #ff7b00; width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
+  .status {
+    padding: 12px; border-radius: 10px;
+    text-align: center; font-size: 14px; margin-bottom: 14px;
+  }
+  .status.ok  { background: #143d23; color: #2ecc71; border: 1px solid #2ecc71; }
+  .status.no  { background: #3d1414; color: #e74c3c; border: 1px solid #e74c3c; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏹 AVCI AI 4 PRO</h1>
+  <p>Hedefi vuran yapay zeka</p>
+</header>
+
+<nav>
+  <button class="tab-btn active" onclick="switchTab('sohbet', this)">💬 Sohbet</button>
+  <button class="tab-btn" onclick="switchTab('oneri', this)">💡 Öneri</button>
+  <button class="tab-btn" onclick="switchTab('oyun', this)">🎮 Oyun</button>
+  <button class="tab-btn" onclick="switchTab('ayarlar', this)">⚙️ Ayarlar</button>
+</nav>
+
+<main>
+
+  <!-- SOHBET -->
+  <section id="sohbet" class="tab active">
+    <div id="messages"></div>
+    <div class="row">
+      <input id="chatInput" placeholder="Bir şey yaz..." autocomplete="off" />
+      <button onclick="send()">Gönder</button>
+    </div>
+  </section>
+
+  <!-- ÖNERİ -->
+  <section id="oneri" class="tab">
+    <input id="suggestInput" placeholder="Bir kelime yaz (örn: kahve, spor, müzik)" oninput="suggest()" />
+    <ul id="suggestList"></ul>
+    <p class="hint">Yazdıkça öneriler çıkar 🔍</p>
+  </section>
+
+  <!-- OYUN -->
+  <section id="oyun" class="tab">
+    <div class="game-box">
+      <h3>Taş · Kağıt · Makas</h3>
+      <div class="result" id="gameResult">Bir seçim yap!</div>
+      <div class="choices">
+        <button onclick="play('taş')">✊</button>
+        <button onclick="play('kağıt')">✋</button>
+        <button onclick="play('makas')">✌️</button>
+      </div>
+      <div class="score">
+        <div>Sen <span id="scoreUser">0</span></div>
+        <div>Berabere <span id="scoreDraw">0</span></div>
+        <div>Bot <span id="scoreBot">0</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AYARLAR -->
+  <section id="ayarlar" class="tab">
+    <div class="settings-box">
+      <h3>🔑 Gemini API Anahtarı</h3>
+      <p>Kendi Gemini API anahtarını gir. Anahtar sadece <b>bu cihazda</b> saklanır, GitHub'a gitmez.</p>
+      <p>Ücretsiz anahtar: <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a></p>
+
+      <div id="apiStatus" class="status no">❌ Anahtar yok — kural tabanlı mod</div>
+
+      <!-- type="text" yapıldı, klavye şifre moduna girmez -->
+      <input id="apiKeyInput" class="api-input" type="text" placeholder="AIza... ile başlayan anahtar" autocomplete="off" spellcheck="false" />
+      <button type="button" class="btn-show" onclick="toggleKey()">👁️ Göster / Gizle</button>
+
+      <div class="btn-row">
+        <button class="btn-save" onclick="saveKey()">💾 Kaydet</button>
+        <button class="btn-del"  onclick="deleteKey()">🗑️ Sil</button>
+      </div>
+
+      <p class="hint">⚠️ Anahtar olmadan da bot çalışır. Anahtar girersen Gemini'ye bağlanır.</p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ============ SEKME ============ */
+function switchTab(id, btn){
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  btn.classList.add("active");
+  if(id === "ayarlar") updateApiStatus();
+}
+
+/* ============ API KEY ============ */
+const KEY_STORAGE = "avci_gemini_key";
+
+function getKey(){
+  try { return localStorage.getItem(KEY_STORAGE) || ""; } catch(e){ return ""; }
+}
+
+function updateApiStatus(){
+  const el = document.getElementById("apiStatus");
+  if(getKey()){
+    el.className = "status ok";
+    el.textContent = "✅ Anahtar bağlı — Gemini modu aktif";
+  } else {
+    el.className = "status no";
+    el.textContent = "❌ Anahtar yok — kural tabanlı mod";
+  }
+}
+
+function toggleKey(){
+  const inp = document.getElementById("apiKeyInput");
+  inp.type = inp.type === "password" ? "text" : "password";
+}
+
+function saveKey(){
+  const v = document.getElementById("apiKeyInput").value.trim();
+  if(!v){ alert("Anahtar boş!"); return; }
+  try {
+    localStorage.setItem(KEY_STORAGE, v);
+    document.getElementById("apiKeyInput").value = "";
+    updateApiStatus();
+    alert("✅ Anahtar kaydedildi! Sohbet sekmesinde Gemini kullanılacak.");
+  } catch(e){
+    alert("❌ Kaydedilemedi: " + e.message);
+  }
+}
+
+function deleteKey(){
+  try {
+    localStorage.removeItem(KEY_STORAGE);
+    updateApiStatus();
+    alert("🗑️ Anahtar silindi. Kural tabanlı moda dönüldü.");
+  } catch(e){ alert("Hata: " + e.message); }
+}
+
+/* ============ SOHBET ============ */
+const rules = [
+  { keys:["selam","merhaba","hey","slm"], reply:"Selam avcı! 👋 Hedefin ne?" },
+  { keys:["saat","zaman"],         reply:() => "Şu an: " + new Date().toLocaleTimeString("tr-TR") },
+  { keys:["tarih","gün"],          reply:() => "Bugün: " + new Date().toLocaleDateString("tr-TR") },
+  { keys:["adın","ismin","kimsin"],reply:"Ben Avcı AI 4 Pro 🏹 Hedefi vuran yapay zeka!" },
+  { keys:["nasılsın","naber"],     reply:"Hedeflerime kilitlendim, iyiyim! 🎯 Sen nasılsın?" },
+  { keys:["teşekkür","sağol"],     reply:"Rica ederim avcı! 😊" },
+  { keys:["görüşürüz","hoşçakal","bay"], reply:"Görüşürüz! 🏹" },
+  { keys:["şaka","komik"],         reply:"Avcı neden bilgisayar almış? Çünkü hedefi 'mouse' imiş! 😄" },
+  { keys:["yardım","ne yapabilirsin"], reply:"Sohbet ederim, öneri sunarım, oyun oynarım. Sekmeleri dene! 🎯" },
+];
+
+function getRuleReply(text){
+  const t = text.toLowerCase();
+  for(const r of rules){
+    if(r.keys.some(k => t.includes(k))){
+      return typeof r.reply === "function" ? r.reply() : r.reply;
+    }
+  }
+  return null;
+}
+
+// 🔥 YEDEKLEMELİ (FALLBACK) GEMINI BAĞLANTISI
+async function getGeminiReply(text){
+  const key = getKey();
+  if(!key) return null;
+  
+  // Sırayla denenecek modeller
+  const models = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.6-flash"];
+  let lastError = "";
+
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] })
+        }
+      );
+      
+      if(res.ok) {
+        const data = await res.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if(reply) return reply; // Başarılıysa direkt dön
+      } else {
+        lastError = res.status;
+      }
+    } catch(e) {
+      lastError = e.message;
+    }
+  }
+
+  // Hepsi başarısız olursa
+  return "⚠️ Gemini hatası (" + lastError + "). Modeller denendi ama cevap alınamadı. Anahtar geçersiz veya kotanız dolmuş olabilir.";
+}
+
+function addMsg(text, who, extraClass){
+  const div = document.createElement("div");
+  div.className = "msg " + who + (extraClass ? " " + extraClass : "");
+  div.textContent = text;
+  const box = document.getElementById("messages");
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+async function send(){
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if(!text) return;
+  addMsg(text, "user");
+  input.value = "";
+
+  const ruleReply = getRuleReply(text);
+
+  if(getKey()){
+    const typing = addMsg("Avcı AI düşünüyor...", "bot", "typing");
+    const reply = await getGeminiReply(text);
+    typing.remove();
+    if(reply) addMsg(reply, "bot");
+    else addMsg(ruleReply || "Bunu bilmiyorum 🤔", "bot");
+  } else {
+    setTimeout(() => {
+      addMsg(ruleReply || "Bunu henüz bilmiyorum 🤔 Ayarlar'dan Gemini anahtarı girersen daha akıllı olurum!", "bot");
+    }, 250);
+  }
+}
+
+document.getElementById("chatInput").addEventListener("keydown", e => {
+  if(e.key === "Enter") send();
+});
+
+addMsg("Merhaba avcı! 🏹 Ben Avcı AI 4 Pro. 'selam', 'saat', 'şaka' yazmayı dene! API anahtarı için Ayarlar sekmesine bak.", "bot");
+
+/* ============ ÖNERİ ============ */
+const suggestionData = {
+  "kahve":   ["Türk kahvesi", "Filtre kahve", "Latte", "Espresso", "Soğuk brew"],
+  "spor":    ["Futbol", "Basketbol", "Koşu", "Yüzme", "Bisiklet"],
+  "müzik":   ["Rock", "Pop", "Jazz", "Klasik", "Rap"],
+  "film":    ["Aksiyon", "Komedi", "Bilim kurgu", "Korku", "Dram"],
+  "yemek":   ["Pizza", "Mantı", "Kebap", "Makarna", "Sushi"],
+  "kitap":   ["Roman", "Şiir", "Biyografi", "Bilim", "Tarih"],
+  "oyun":    ["Satranç", "Taş-kağıt-makas", "Bulmaca", "Kart oyunları", "Strateji"],
+  "teknoloji":["Yapay zeka", "Yazılım", "Mobil", "Robotik", "Bulut"],
+};
+
+function suggest(){
+  const q = document.getElementById("suggestInput").value.toLowerCase().trim();
+  const list = document.getElementById("suggestList");
+  list.innerHTML = "";
+  if(!q) return;
+
+  let found = [];
+  for(const [key, values] of Object.entries(suggestionData)){
+    if(key.includes(q) || q.includes(key)){
+      found.push({ title: key, items: values });
+    }
+  }
+  if(found.length === 0){
+    for(const [key, values] of Object.entries(suggestionData)){
+      for(const v of values){
+        if(v.toLowerCase().includes(q)){
+          found.push({ title: key, items: [v] });
+        }
+      }
+    }
+  }
+  if(found.length === 0){
+    list.innerHTML = `<li>😕 "<strong>${q}</strong>" için öneri yok. Dene: kahve, spor, müzik, film...</li>`;
+    return;
+  }
+  found.forEach(f => {
+    const li = document.createElement("li");
+    li.innerHTML = `<strong>${f.title}</strong> → ${f.items.join(", ")}`;
+    list.appendChild(li);
+  });
+}
+
+/* ============ OYUN ============ */
+let score = { user: 0, bot: 0, draw: 0 };
+
+function play(userChoice){
+  const choices = ["taş", "kağıt", "makas"];
+  const botChoice = choices[Math.floor(Math.random() * 3)];
+  const emoji = { "taş": "✊", "kağıt": "✋", "makas": "✌️" };
+
+  let result = "", cls = "";
+  if(userChoice === botChoice){
+    result = `Berabere! İkiniz de ${emoji[userChoice]} seçtiniz.`;
+    cls = "draw"; score.draw++;
+  } else if(
+    (userChoice === "taş"   && botChoice === "makas") ||
+    (userChoice === "kağıt" && botChoice === "taş")   ||
+    (userChoice === "makas" && botChoice === "kağıt")
+  ){
+    result = `Kazandın! 🎉 Sen ${emoji[userChoice]}, bot ${emoji[botChoice]}.`;
+    cls = "win"; score.user++;
+  } else {
+    result = `Kaybettin 😢 Sen ${emoji[userChoice]}, bot ${emoji[botChoice]}.`;
+    cls = "lose"; score.bot++;
+  }
+
+  const res = document.getElementById("gameResult");
+  res.textContent = result;
+  res.className = "result " + cls;
+
+  document.getElementById("scoreUser").textContent = score.user;
+  document.getElementById("scoreBot").textContent  = score.bot;
+  document.getElementById("scoreDraw").textContent = score.draw;
+}
+
+/* Başlangıçta durumu güncelle */
+updateApiStatus();
+</script>
+
+</body>
+       </html>
