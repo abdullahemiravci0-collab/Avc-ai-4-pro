@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>AvaX Pro</title>
+<title>Avcı AI</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
@@ -78,8 +78,8 @@
 <body>
 
 <header>
-  <h1>🚀 AVAX PRO</h1>
-  <p>Akıllı Yapay Zeka Asistanı</p>
+  <h1>🏹 AVCI AI</h1>
+  <p>Hedefi vuran yapay zeka</p>
 </header>
 
 <nav>
@@ -143,8 +143,8 @@
 
 <script>
 // --- DEĞİŞKENLER & HAFIZA ---
-const KEY_STORAGE = "avax_gemini_key";
-const CHAT_STORAGE = "avax_chat_history";
+const KEY_STORAGE = "avci_gemini_key";
+const CHAT_STORAGE = "avci_chat_history";
 let chatHistory = []; 
 
 // --- SEKME ---
@@ -184,7 +184,7 @@ function loadChat() {
     chatHistory = JSON.parse(saved);
     chatHistory.forEach(msg => renderMsg(msg.text, msg.role, false));
   } else {
-    addMsg("Merhaba! Ben AvaX Pro. Size nasıl yardımcı olabilirim?", "bot");
+    addMsg("Merhaba! Ben Avcı AI. Size nasıl yardımcı olabilirim?", "bot");
   }
 }
 function saveChat() {
@@ -307,7 +307,6 @@ async function send(){
     
     if(reply) {
       addMsg(reply, "bot");
-      // Sesli okuma (TTS) kaldırıldı
     } else {
       addMsg(ruleReply || "Bunu bilmiyorum 🤔", "bot");
     }
@@ -363,4 +362,4 @@ updateApiStatus();
 loadChat();
 </script>
 </body>
- </html>
+                  </html> 
