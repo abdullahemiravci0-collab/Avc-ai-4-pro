@@ -29,10 +29,21 @@
   .tab.active { display: flex; }
 
   #messages { flex: 1; overflow-y: auto; margin-bottom: 10px; padding: 4px; min-height: 200px; }
-  .msg { padding: 10px 14px; border-radius: 14px; margin: 6px 0; max-width: 85%; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
-  .user { background: #ff7b00; color: #fff; margin-left: auto; border-bottom-right-radius: 4px; }
-  .bot { background: #2a3b55; color: #e0e1dd; border-bottom-left-radius: 4px; }
-  .bot.typing { color: #ff7b00; font-style: italic; }
+  .msg-wrapper { display: flex; flex-direction: column; margin: 6px 0; max-width: 85%; }
+  .msg-wrapper.user { margin-left: auto; align-items: flex-end; }
+  .msg-wrapper.bot { margin-right: auto; align-items: flex-start; }
+  
+  .msg { padding: 10px 14px; border-radius: 14px; font-size: 15px; line-height: 1.4; word-wrap: break-word; width: 100%; }
+  .user .msg { background: #ff7b00; color: #fff; border-bottom-right-radius: 4px; }
+  .bot .msg { background: #2a3b55; color: #e0e1dd; border-bottom-left-radius: 4px; }
+  .bot.typing .msg { color: #ff7b00; font-style: italic; }
+
+  .btn-speak {
+    background: transparent; border: 1px solid #ff7b00; color: #ff7b00;
+    border-radius: 10px; padding: 4px 8px; font-size: 12px; margin-top: 4px;
+    cursor: pointer; display: inline-block;
+  }
+  .btn-speak:active { background: #ff7b00; color: #fff; }
 
   .row { display: flex; gap: 8px; }
   .row input {
@@ -64,7 +75,6 @@
   .settings-box { padding: 8px; }
   .settings-box h3 { color: #ff7b00; margin: 4px 0 12px; font-size: 16px; }
   .settings-box p { font-size: 13px; color: #a0a0a0; line-height: 1.5; }
-  .settings-box a { color: #ff7b00; }
   .api-input { width: 100%; padding: 12px; border: 1px solid #2a3b55; border-radius: 10px; font-size: 14px; background: #0d1b2a; color: #e0e1dd; outline: none; margin-bottom: 10px; font-family: monospace; }
   .btn-row { display: flex; gap: 8px; margin-bottom: 14px; }
   .btn-row button { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: bold; cursor: pointer; }
@@ -135,6 +145,16 @@
         <button class="btn-save" onclick="saveKey()">💾 Kaydet</button>
         <button class="btn-del" onclick="deleteKey()">🗑️ Sil</button>
       </div>
+
+      <h3 style="margin-top:20px;">👑 VIP Kodu (Aile Modu)</h3>
+      <p>Kodu girip kaydedersen bot aileye özel moda geçer.</p>
+      <div id="vipStatus" class="status no">❌ Normal Mod (VIP Değil)</div>
+      <input id="vipInput" class="api-input" type="text" placeholder="VIP Kodunu Girin..." autocomplete="off" />
+      <div class="btn-row">
+        <button class="btn-save" onclick="saveVip()" style="background:#f1c40f; color:#000;">👑 VIP Aktifleştir</button>
+        <button class="btn-del" onclick="deleteVip()">🗑️ İptal Et</button>
+      </div>
+
       <h3 style="margin-top:20px;">🗑️ Sohbeti Temizle</h3>
       <button class="btn-del" style="width:100%;" onclick="clearChat()">Tüm Geçmişi Sil</button>
     </div>
@@ -145,6 +165,8 @@
 // --- DEĞİŞKENLER & HAFIZA ---
 const KEY_STORAGE = "avci_gemini_key";
 const CHAT_STORAGE = "avci_chat_history";
+const VIP_STORAGE = "avci_vip_mode";
+const VIP_CODE = "avci2026"; // VIP KODU BURADA (İstediğin gibi değiştirebilirsin)
 let chatHistory = []; 
 
 // --- SEKME ---
@@ -153,15 +175,15 @@ function switchTab(id, btn){
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   btn.classList.add("active");
-  if(id === "ayarlar") updateApiStatus();
+  if(id === "ayarlar") { updateApiStatus(); updateVipStatus(); }
 }
 
 // --- API AYARLARI ---
 function getKey() { return localStorage.getItem(KEY_STORAGE) || ""; }
 function updateApiStatus(){
   const el = document.getElementById("apiStatus");
-  if(getKey()) { el.className = "status ok"; el.textContent = "✅ Anahtar bağlı (Gemini Aktif)"; }
-  else { el.className = "status no"; el.textContent = "❌ Anahtar yok (Kural Modu)"; }
+  if(getKey()) { el.className = "status ok"; el.textContent = "✅ Anahtar bağlı"; }
+  else { el.className = "status no"; el.textContent = "❌ Anahtar yok"; }
 }
 function saveKey(){
   const v = document.getElementById("apiKeyInput").value.trim();
@@ -174,7 +196,30 @@ function saveKey(){
 function deleteKey(){
   localStorage.removeItem(KEY_STORAGE);
   updateApiStatus();
-  alert("🗑️ Anahtar silindi.");
+}
+
+// --- VIP AYARLARI ---
+function isVip() { return localStorage.getItem(VIP_STORAGE) === "true"; }
+function updateVipStatus(){
+  const el = document.getElementById("vipStatus");
+  if(isVip()) { el.className = "status ok"; el.textContent = "👑 VIP Modu Aktif (Aile Modu)"; el.style.borderColor = "#f1c40f"; el.style.color = "#f1c40f"; }
+  else { el.className = "status no"; el.textContent = "❌ Normal Mod"; el.style.borderColor = ""; el.style.color = ""; }
+}
+function saveVip(){
+  const v = document.getElementById("vipInput").value.trim();
+  if(v === VIP_CODE) {
+    localStorage.setItem(VIP_STORAGE, "true");
+    document.getElementById("vipInput").value = "";
+    updateVipStatus();
+    alert("👑 VIP Modu Aktif! Bot artık aileye özel.");
+  } else {
+    alert("❌ Hatalı VIP Kodu!");
+  }
+}
+function deleteVip(){
+  localStorage.removeItem(VIP_STORAGE);
+  updateVipStatus();
+  alert("VIP Modu kapatıldı. Normal moda dönüldü.");
 }
 
 // --- SOHBET HAFIZASI ---
@@ -199,16 +244,31 @@ function clearChat() {
   }
 }
 
-// --- MESAJ EKRANA YAZDIRMA ---
+// --- MESAJ EKRANA YAZDIRMA (Ses Butonlu) ---
 function renderMsg(text, who, animate = true) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "msg-wrapper " + who + (who === 'bot' && text === '...' ? ' typing' : '');
+  
   const div = document.createElement("div");
-  div.className = "msg " + who + (who === 'bot' && text === '...' ? ' typing' : '');
+  div.className = "msg";
   div.textContent = text;
+  wrapper.appendChild(div);
+
+  // Bot mesajlarına "Dinle" butonu ekle
+  if (who === "bot" && text !== "...") {
+    const speakBtn = document.createElement("button");
+    speakBtn.className = "btn-speak";
+    speakBtn.innerHTML = "🔊 Dinle";
+    speakBtn.onclick = () => speakText(text);
+    wrapper.appendChild(speakBtn);
+  }
+
   const box = document.getElementById("messages");
-  box.appendChild(div);
+  box.appendChild(wrapper);
   if(animate) box.scrollTop = box.scrollHeight;
-  return div;
+  return wrapper;
 }
+
 function addMsg(text, who, save = true) {
   if (save && text !== "...") {
     chatHistory.push({ role: who, text: text });
@@ -217,7 +277,20 @@ function addMsg(text, who, save = true) {
   return renderMsg(text, who);
 }
 
-// --- SESLİ GİRİŞ (Sadece Mikrofon) ---
+// --- SESLİ OKUMA (TTS) ---
+function speakText(text) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'tr-TR';
+    utterance.rate = 1.0;
+    window.speechSynthesis.speak(utterance);
+  } else {
+    alert("Bu tarayıcı sesli okumayı desteklemiyor.");
+  }
+}
+
+// --- SESLİ GİRİŞ (Mikrofon) ---
 function startVoice() {
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
     return alert("Bu tarayıcı mikrofonu desteklemiyor.");
@@ -233,7 +306,7 @@ function startVoice() {
     const text = event.results[0][0].transcript;
     document.getElementById("chatInput").value = text;
     micBtn.classList.remove("listening");
-    send(); // Direkt gönder
+    send();
   };
   recognition.onerror = () => {
     micBtn.classList.remove("listening");
@@ -244,7 +317,7 @@ function startVoice() {
   recognition.start();
 }
 
-// --- YAPAY ZEKA (AKILLI MODELLER) ---
+// --- YAPAY ZEKA (VIP VE NORMAL MOD) ---
 const rules = [
   { keys:["selam","merhaba"], reply:"Selam! 👋 Sana nasıl yardımcı olabilirim?" },
   { keys:["saat"], reply:() => "Şu an: " + new Date().toLocaleTimeString("tr-TR") },
@@ -260,23 +333,29 @@ async function getGeminiReply(text){
   const key = getKey();
   if(!key) return null;
   
-  // Akıllı modeller
   const models = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-1.5-pro-latest"];
   let lastError = "";
 
-  // Sohbet geçmişini API formatına çevir (Son 10 mesaj)
   const contents = chatHistory.slice(-10).map(msg => ({
     role: msg.role === 'bot' ? 'model' : 'user',
     parts: [{ text: msg.text }]
   }));
   contents.push({ role: "user", parts: [{ text: text }] });
 
+  // 🔥 VIP KONTROLÜ 🔥
+  let bodyData = { contents: contents };
+  if (isVip()) {
+    bodyData.system_instruction = { 
+      parts: [{ text: "Sen Avcı AI'sın. Kullanıcı senin kaptanın ve ailesi. Onlara çok samimi, koruyucu ve özel davran. Onlara 'kaptan' veya 'ailem' diye hitap et. Sadece onlara özel bir asistan olduğunu hissettir." }] 
+    };
+  }
+
   for (const model of models) {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: contents }) // System prompt kaldırıldı
+        body: JSON.stringify(bodyData)
       });
       
       if(res.ok) {
@@ -359,7 +438,8 @@ function play(userChoice){
 
 // --- BAŞLAT ---
 updateApiStatus();
+updateVipStatus();
 loadChat();
 </script>
 </body>
-                  </html> 
+</html>
